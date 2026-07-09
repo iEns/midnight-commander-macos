@@ -33,8 +33,8 @@ The app resolves `mc` at runtime from common Homebrew paths and `$PATH`. It does
 ## Quick start
 
 ```bash
-git clone https://github.com/<your-user>/mc-app.git
-cd mc-app
+git clone https://github.com/iEns/midnight-commander-macos.git
+cd midnight-commander-macos
 npm install
 npm run tauri build
 ```
