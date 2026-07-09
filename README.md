@@ -4,6 +4,8 @@ A native macOS application that runs [GNU Midnight Commander](https://midnight-c
 
 This is **not** a rewrite of mc. The app embeds the real `mc` binary from your system inside an xterm.js terminal, backed by a [Tauri 2](https://v2.tauri.app/) shell and a Rust PTY layer.
 
+![Midnight Commander running on macOS](mc-mac-app.png)
+
 ## Features
 
 - Double-clickable `.app` with a custom MC-style icon
