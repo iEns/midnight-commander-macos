@@ -96,20 +96,20 @@ Optional integration scripts (manual / smoke tests):
 ```text
 ┌──────────────────────────────────────────────┐
 │  Midnight Commander.app (Tauri 2)            │
-│  ┌────────────────────────────────────────┐│
-│  │  Webview: xterm.js + FitAddon            ││
-│  │  keystrokes → write_pty                  ││
-│  │  pty-output → term.write()               ││
-│  └────────────────────────────────────────┘│
+│  ┌────────────────────────────────────────┐  │
+│  │  Webview: xterm.js + FitAddon          │  │
+│  │  keystrokes → write_pty                │  │
+│  │  pty-output → term.write()             │  │
+│  └────────────────────────────────────────┘  │
 │              ↕ Tauri IPC + events            │
-│  ┌────────────────────────────────────────┐│
-│  │  Rust: PtySessionRegistry              ││
-│  │  spawn mc in PTY, stream I/O, titles   ││
-│  └────────────────────────────────────────┘│
+│  ┌────────────────────────────────────────┐  │
+│  │  Rust: PtySessionRegistry              │  │
+│  │  spawn mc in PTY, stream I/O, titles   │  │
+│  └────────────────────────────────────────┘  │
 │              ↕ portable-pty                  │
-│  ┌────────────────────────────────────────┐│
-│  │  System `mc` (TERM=xterm-256color)     ││
-│  └────────────────────────────────────────┘│
+│  ┌────────────────────────────────────────┐  │
+│  │  System `mc` (TERM=xterm-256color)     │  │
+│  └────────────────────────────────────────┘  │
 └──────────────────────────────────────────────┘
 ```
 
