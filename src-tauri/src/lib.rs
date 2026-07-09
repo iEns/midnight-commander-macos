@@ -1,3 +1,4 @@
+mod mc_title;
 mod pty_registry;
 mod resolve_mc;
 

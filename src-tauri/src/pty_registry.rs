@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use tauri::{AppHandle, Emitter, Manager};
 
+use crate::mc_title::{format_window_title, parse_mc_dir_from_chunk};
 use crate::resolve_mc::{resolve_mc, ResolveMcError};
 use std::path::PathBuf;
 
@@ -132,6 +133,7 @@ impl PtySessionRegistry {
 
         if let Some(app_for_reader) = app {
             let event_name = format!("pty-output-{window_label}");
+            let title_label = window_label.clone();
             let exit_label = window_label.clone();
             let exit_app = app_for_reader.clone();
             let exit_child = child.clone();
@@ -143,6 +145,14 @@ impl PtySessionRegistry {
                         Ok(0) => break,
                         Ok(count) => {
                             let chunk = String::from_utf8_lossy(&buffer[..count]).to_string();
+                            if let Some(dir) = parse_mc_dir_from_chunk(&chunk) {
+                                if let Some(window) =
+                                    app_for_reader.get_webview_window(&title_label)
+                                {
+                                    let title = format_window_title(&dir);
+                                    let _ = window.set_title(&title);
+                                }
+                            }
                             let _ = app_for_reader.emit(&event_name, chunk);
                         }
                         Err(_) => break,

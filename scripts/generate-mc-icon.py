@@ -57,6 +57,8 @@ def render_icon(size: int) -> list[bytes]:
                     color = border
             elif bottom <= y < size - margin and margin <= x < size - margin:
                 color = status
+                if x in (margin, size - margin - 1):
+                    color = border
 
             if size >= 48 and y == top + max(2, size // 12) and margin + 2 <= x < split_x - 3:
                 color = text
@@ -68,13 +70,16 @@ def render_icon(size: int) -> list[bytes]:
         rows.append(bytes(row))
 
     if size >= 64:
-        # Simple "mc" hint in the status bar
+        # Simple dash hint in the status bar (byte index is within the row only)
         cx = size // 2 - max(2, size // 16)
         cy = bottom + max(1, bar_h // 3)
+        row = bytearray(rows[cy])
         for dx in range(max(4, size // 10)):
-            if 0 <= cx + dx < size:
-                idx = (cy * size + (cx + dx)) * 4
-                rows[cy] = rows[cy][:idx] + bytes([0, 0, 0, 255]) + rows[cy][idx + 4 :]
+            px = cx + dx
+            if margin + 1 <= px < size - margin - 1:
+                idx = px * 4
+                row[idx : idx + 4] = bytes([0, 0, 0, 255])
+        rows[cy] = bytes(row)
 
     return rows
 

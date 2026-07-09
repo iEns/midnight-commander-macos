@@ -5,6 +5,48 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 
+const WINDOW_TITLE_PREFIX = "Midnight Commander";
+
+/** MC sets the terminal title via OSC 0, e.g. "mc [user@host]:~/path". */
+function parseMcWorkingDir(oscTitle: string): string | null {
+  const match = /^mc \[[^\]]+\]:(.+)$/.exec(oscTitle.trim());
+  return match?.[1] ?? null;
+}
+
+function parseMcDirFromChunk(chunk: string): string | null {
+  let latest: string | null = null;
+  let searchFrom = 0;
+
+  while (true) {
+    const rel = chunk.indexOf("\x1b]0;", searchFrom);
+    if (rel < 0) {
+      break;
+    }
+
+    const payloadStart = searchFrom + rel + 4;
+    const rest = chunk.slice(payloadStart);
+    const belEnd = rest.indexOf("\x07");
+    const stEnd = rest.indexOf("\x1b\\");
+    const endCandidates = [belEnd, stEnd].filter((value) => value >= 0);
+    if (endCandidates.length === 0) {
+      break;
+    }
+
+    const end = Math.min(...endCandidates);
+    const dir = parseMcWorkingDir(rest.slice(0, end));
+    if (dir) {
+      latest = dir;
+    }
+    searchFrom = payloadStart + end + 1;
+  }
+
+  return latest;
+}
+
+async function updateWindowTitle(appWindow: ReturnType<typeof getCurrentWebviewWindow>, dir: string) {
+  await appWindow.setTitle(`${WINDOW_TITLE_PREFIX}: ${dir}`);
+}
+
 async function bootTerminal() {
   const appWindow = getCurrentWebviewWindow();
   const windowLabel = appWindow.label;
@@ -24,6 +66,13 @@ async function bootTerminal() {
   term.open(document.getElementById("terminal")!);
   fitAddon.fit();
 
+  term.onTitleChange((title) => {
+    const dir = parseMcWorkingDir(title);
+    if (dir) {
+      void updateWindowTitle(appWindow, dir);
+    }
+  });
+
   await invoke("spawn_mc", {
     windowLabel,
     cols: term.cols,
@@ -31,6 +80,10 @@ async function bootTerminal() {
   });
 
   const unlistenOutput = await listen<string>(`pty-output-${windowLabel}`, (event) => {
+    const dir = parseMcDirFromChunk(event.payload);
+    if (dir) {
+      void updateWindowTitle(appWindow, dir);
+    }
     term.write(event.payload);
   });
 
