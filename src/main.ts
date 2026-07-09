@@ -56,6 +56,8 @@ async function bootTerminal() {
     cursorBlink: true,
     fontFamily: "Menlo, Monaco, 'Courier New', monospace",
     fontSize: 13,
+    // mc is a fullscreen TUI; scrollback 0 stops FitAddon reserving ~14px for a scrollbar gutter.
+    scrollback: 0,
     theme: {
       background: "#000000",
     },

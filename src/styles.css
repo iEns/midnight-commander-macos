@@ -8,3 +8,8 @@ body,
   overflow: hidden;
   background-color: #000;
 }
+
+/* xterm reserves ~14px for a vertical scrollbar even when hidden. */
+.xterm .xterm-scrollable-element > .scrollbar {
+  display: none !important;
+}
