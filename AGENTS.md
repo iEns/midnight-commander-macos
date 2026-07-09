@@ -89,7 +89,9 @@ Each webview loads the same `index.html`. `getCurrentWebviewWindow().label` is t
 
 ```
 mc-app/
+├── README.md                 ← user-facing setup and build guide
 ├── AGENTS.md                 ← this file
+├── LICENSE                   ← MIT
 ├── index.html                ← single-page shell (#terminal div)
 ├── package.json              ← npm scripts, frontend deps
 ├── vite.config.ts            ← dev server port 1420
@@ -307,7 +309,7 @@ git log --oneline
 # 1f69fa1 Add Tauri macOS app that hosts real mc in xterm.js
 ```
 
-Build artifacts are gitignored: `node_modules/`, `dist/`, `src-tauri/target/`, `src-tauri/gen/`.
+Build artifacts and local noise are gitignored: `node_modules/`, `dist/`, `src-tauri/target/`, `src-tauri/gen/`, `__pycache__/`, `.env*`, editor folders.
 
 ---
 

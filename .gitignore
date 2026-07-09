@@ -4,3 +4,17 @@ src-tauri/target/
 src-tauri/gen/
 .DS_Store
 *.log
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Environment / secrets
+.env
+.env.*
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
