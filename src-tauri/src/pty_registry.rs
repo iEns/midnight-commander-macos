@@ -10,6 +10,58 @@ use crate::mc_title::{format_window_title, parse_mc_dir_from_chunk};
 use crate::resolve_mc::{resolve_mc, ResolveMcError};
 use std::path::PathBuf;
 
+const UTF8_LOCALE: &str = "en_US.UTF-8";
+
+fn locale_needs_utf8_override(value: Option<&str>) -> bool {
+    value
+        .map(|locale| !locale.to_ascii_uppercase().contains("UTF-8"))
+        .unwrap_or(true)
+}
+
+/// Append PTY bytes and return complete UTF-8 text, retaining any trailing
+/// incomplete multibyte sequence for the next read.
+fn decode_pty_utf8(pending: &mut Vec<u8>, new_bytes: &[u8]) -> String {
+    pending.extend_from_slice(new_bytes);
+
+    loop {
+        match std::str::from_utf8(pending) {
+            Ok(_) => {
+                return String::from_utf8(std::mem::take(pending)).expect("validated UTF-8");
+            }
+            Err(err) => {
+                let valid = err.valid_up_to();
+                if valid > 0 {
+                    let text = std::str::from_utf8(&pending[..valid])
+                        .expect("valid_up_to boundary")
+                        .to_string();
+                    pending.drain(..valid);
+                    return text;
+                }
+                if let Some(invalid_len) = err.error_len() {
+                    let skip = invalid_len.min(pending.len());
+                    pending.drain(..skip);
+                    continue;
+                }
+                return String::new();
+            }
+        }
+    }
+}
+
+/// macOS GUI apps inherit a minimal environment (no `LANG`). ncurses then avoids
+/// UTF-8 box-drawing; mc's double-line skin falls back to ACS letters (P, Q, …).
+fn ensure_utf8_locale(command: &mut CommandBuilder) {
+    let needs_lang = locale_needs_utf8_override(std::env::var("LANG").ok().as_deref());
+    let needs_ctype = locale_needs_utf8_override(std::env::var("LC_CTYPE").ok().as_deref());
+
+    if needs_lang {
+        command.env("LANG", UTF8_LOCALE);
+    }
+    if needs_ctype {
+        command.env("LC_CTYPE", UTF8_LOCALE);
+    }
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct PtySessionInfo {
     pub session_id: String,
@@ -107,6 +159,7 @@ impl PtySessionRegistry {
         }
         command.env("TERM", "xterm-256color");
         command.env("COLORTERM", "truecolor");
+        ensure_utf8_locale(&mut command);
 
         let child = pair
             .slave
@@ -140,11 +193,15 @@ impl PtySessionRegistry {
 
             thread::spawn(move || {
                 let mut buffer = [0u8; 8192];
+                let mut utf8_pending = Vec::new();
                 loop {
                     match reader.read(&mut buffer) {
                         Ok(0) => break,
                         Ok(count) => {
-                            let chunk = String::from_utf8_lossy(&buffer[..count]).to_string();
+                            let chunk = decode_pty_utf8(&mut utf8_pending, &buffer[..count]);
+                            if chunk.is_empty() {
+                                continue;
+                            }
                             if let Some(dir) = parse_mc_dir_from_chunk(&chunk) {
                                 if let Some(window) =
                                     app_for_reader.get_webview_window(&title_label)
@@ -157,6 +214,11 @@ impl PtySessionRegistry {
                         }
                         Err(_) => break,
                     }
+                }
+
+                if !utf8_pending.is_empty() {
+                    let chunk = String::from_utf8_lossy(&utf8_pending).to_string();
+                    let _ = app_for_reader.emit(&event_name, chunk);
                 }
 
                 if let Ok(mut child) = exit_child.lock() {
@@ -298,6 +360,33 @@ mod tests {
 
         assert!(registry.destroy_session("window-b"));
         assert_eq!(registry.session_count(), 0);
+    }
+
+    #[test]
+    fn decode_pty_utf8_handles_split_multibyte_sequences() {
+        let double_h = "═"; // U+2550, UTF-8: e2 95 90
+        let bytes = double_h.as_bytes();
+
+        let mut pending = Vec::new();
+        assert_eq!(decode_pty_utf8(&mut pending, &bytes[..2]), "");
+        assert_eq!(pending, &bytes[..2]);
+
+        assert_eq!(decode_pty_utf8(&mut pending, &bytes[2..]), double_h);
+        assert!(pending.is_empty());
+
+        let mut pending = Vec::new();
+        assert_eq!(decode_pty_utf8(&mut pending, b"ab"), "ab");
+        assert_eq!(decode_pty_utf8(&mut pending, &bytes[..1]), "");
+        assert_eq!(decode_pty_utf8(&mut pending, &bytes[1..]), double_h);
+    }
+
+    #[test]
+    fn locale_override_when_missing_or_non_utf8() {
+        assert!(locale_needs_utf8_override(None));
+        assert!(locale_needs_utf8_override(Some("C")));
+        assert!(locale_needs_utf8_override(Some("POSIX")));
+        assert!(!locale_needs_utf8_override(Some("en_US.UTF-8")));
+        assert!(!locale_needs_utf8_override(Some("ja_JP.UTF-8")));
     }
 
     #[test]
