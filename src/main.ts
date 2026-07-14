@@ -67,6 +67,7 @@ async function bootTerminal() {
   term.loadAddon(fitAddon);
   term.open(document.getElementById("terminal")!);
   fitAddon.fit();
+  term.focus();
 
   term.onTitleChange((title) => {
     const dir = parseMcWorkingDir(title);

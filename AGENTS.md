@@ -5,6 +5,11 @@ This project packages **GNU Midnight Commander (`mc`)** as a standalone macOS `.
 **Bundle ID:** `com.local.midnight-commander`  
 **Built app path:** `src-tauri/target/release/bundle/macos/Midnight Commander.app`
 
+> **Agent note:** After any backend (Rust) or frontend (TS/CSS) changes, always rebuild with:
+> ```bash
+> npm run tauri build
+> ```
+
 ---
 
 ## What works today

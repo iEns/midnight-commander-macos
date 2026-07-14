@@ -12,6 +12,24 @@ use std::path::PathBuf;
 
 const UTF8_LOCALE: &str = "en_US.UTF-8";
 
+fn resolve_user_shell() -> String {
+    std::env::var("SHELL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "/bin/zsh".to_string())
+}
+
+fn shell_escape_for_c(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
+fn build_login_shell_wrapper(mc_path: &PathBuf) -> (PathBuf, Vec<String>) {
+    let shell = resolve_user_shell();
+    let quoted = shell_escape_for_c(&mc_path.display().to_string());
+    let args = vec!["-l".to_string(), "-c".to_string(), format!("exec {quoted}")];
+    (PathBuf::from(shell), args)
+}
+
 fn locale_needs_utf8_override(value: Option<&str>) -> bool {
     value
         .map(|locale| !locale.to_ascii_uppercase().contains("UTF-8"))
@@ -108,9 +126,11 @@ impl PtySessionRegistry {
 
     pub fn dry_run_for_window(&self, window_label: &str) -> Result<String, ResolveMcError> {
         let mc_path = resolve_mc()?;
+        let (shell, shell_args) = build_login_shell_wrapper(&mc_path);
         Ok(format!(
-            "Would execute: {} for window {}",
-            mc_path.display(),
+            "Would execute: {} {} for window {}",
+            shell.display(),
+            shell_args.join(" "),
             window_label
         ))
     }
@@ -123,7 +143,8 @@ impl PtySessionRegistry {
         rows: u16,
     ) -> Result<PtySessionInfo, String> {
         let mc_path = resolve_mc().map_err(|err| err.to_string())?;
-        self.create_session_with_command(app, window_label, mc_path, Vec::new(), cols, rows)
+        let (shell, shell_args) = build_login_shell_wrapper(&mc_path);
+        self.create_session_with_command(app, window_label, shell, shell_args, cols, rows)
     }
 
     pub fn create_session_with_command(
@@ -157,6 +178,7 @@ impl PtySessionRegistry {
         for arg in args {
             command.arg(arg);
         }
+        command.env("SHELL", &resolve_user_shell());
         command.env("TERM", "xterm-256color");
         command.env("COLORTERM", "truecolor");
         ensure_utf8_locale(&mut command);
@@ -317,12 +339,13 @@ mod tests {
     fn registry_create_maps_window_label() {
         let registry = PtySessionRegistry::new();
         let mc_path = resolve_mc().expect("mc installed");
+        let (shell, _shell_args) = build_login_shell_wrapper(&mc_path);
         let info = registry
             .create_session(None, "test-window".to_string(), 80, 24)
             .expect("create session");
 
         assert_eq!(info.window_label, "test-window");
-        assert_eq!(info.mc_path, mc_path.display().to_string());
+        assert_eq!(info.mc_path, shell.display().to_string());
         assert!(registry.has_session("test-window"));
         assert_eq!(registry.session_count(), 1);
     }
@@ -393,10 +416,12 @@ mod tests {
     fn dry_run_uses_resolved_mc_path() {
         let registry = PtySessionRegistry::new();
         let mc_path = resolve_mc().expect("mc installed");
+        let (shell, _shell_args) = build_login_shell_wrapper(&mc_path);
         let message = registry
             .dry_run_for_window("dry-window")
             .expect("dry run");
         assert!(message.contains(&mc_path.display().to_string()));
+        assert!(message.contains(&shell.display().to_string()));
         assert!(message.contains("dry-window"));
     }
 }
